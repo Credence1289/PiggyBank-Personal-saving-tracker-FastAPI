@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiggyBank — Personal Finance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --ink: #0a0a0f;
+            --ink-2: #1a1a2e;
+            --ink-3: #2a2a45;
+            --gold: #c9a84c;
+            --gold-light: #e8c96a;
+            --gold-dim: rgba(201,168,76,0.15);
+            --cream: #f5f0e8;
+            --cream-2: #ede8e0;
+            --surface: #12121f;
+            --surface-2: #1c1c30;
+            --surface-3: #232338;
+            --border: rgba(201,168,76,0.2);
+            --border-soft: rgba(255,255,255,0.06);
+            --green: #4caf7d;
+            --green-dim: rgba(76,175,125,0.12);
+            --red: #e05c5c;
+            --red-dim: rgba(224,92,92,0.12);
+            --text-muted: rgba(245,240,232,0.4);
+            --text-secondary: rgba(245,240,232,0.65);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--ink);
+            color: var(--cream);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ─── NOISE OVERLAY ─────────────────────────── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.5;
+        }
+
+        /* ─── TOAST ──────────────────────────────────── */
+        #toast-container {
+            position: fixed; top: 24px; right: 24px;
+            z-index: 10000; display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            background: var(--surface-3);
+            border: 1px solid var(--border);
+            color: var(--cream);
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'DM Mono', monospace;
+            letter-spacing: 0.02em;
+            display: flex; align-items: center; gap: 10px;
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .toast.show { transform: translateX(0); }
+        .toast.success { border-color: rgba(76,175,125,0.4); }
+        .toast.error   { border-color: rgba(224,92,92,0.4); }
+        .toast-dot {
+            width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+            background: var(--gold);
+        }
+        .toast.success .toast-dot { background: var(--green); }
+        .toast.error   .toast-dot { background: var(--red); }
+
+        /* ─── AUTH VIEW ──────────────────────────────── */
+        #auth-view {
+            min-height: 100vh;
+            display: flex;
+            align-items: stretch;
+        }
+
+        .auth-left {
+            flex: 1;
+            background: linear-gradient(145deg, var(--ink-2) 0%, var(--ink) 100%);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: flex-start;
+            padding: 80px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .auth-left::before {
+            content: '';
+            position: absolute;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%);
+            top: -100px; left: -100px;
+            pointer-events: none;
+        }
+
+        .auth-left::after {
+            content: '';
+            position: absolute;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(76,175,125,0.05) 0%, transparent 70%);
+            bottom: -50px; right: -100px;
+            pointer-events: none;
+        }
+
+        .auth-logo {
+            display: flex; align-items: center; gap: 14px;
+            margin-bottom: 80px;
+            position: relative; z-index: 1;
+        }
+
+        .auth-logo-icon {
+            width: 44px; height: 44px;
+            background: var(--gold-dim);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+
+        .auth-logo-text {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 22px; font-weight: 500;
+            letter-spacing: 0.05em;
+            color: var(--cream);
+        }
+
+        .auth-headline {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(42px, 5vw, 68px);
+            font-weight: 300;
+            line-height: 1.1;
+            color: var(--cream);
+            position: relative; z-index: 1;
+            margin-bottom: 24px;
+        }
+
+        .auth-headline em {
+            font-style: italic;
+            color: var(--gold);
+        }
+
+        .auth-subtext {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            max-width: 400px;
+            position: relative; z-index: 1;
+            margin-bottom: 60px;
+        }
+
+        .auth-stats {
+            display: flex; gap: 48px;
+            position: relative; z-index: 1;
+        }
+
+        .auth-stat-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 28px; font-weight: 500;
+            color: var(--gold);
+        }
+
+        .auth-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* Decorative lines */
+        .auth-deco {
+            position: absolute;
+            bottom: 60px; left: 80px;
+            right: 80px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            z-index: 1;
+        }
+
+        .auth-right {
+            width: 480px;
+            background: var(--surface);
+            border-left: 1px solid var(--border-soft);
+            display: flex; flex-direction: column;
+            justify-content: center;
+            padding: 60px 52px;
+            position: relative;
+        }
+
+        .auth-right::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            opacity: 0.3;
+        }
+
+        .tab-row {
+            display: flex;
+            border-bottom: 1px solid var(--border-soft);
+            margin-bottom: 40px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 14px 0;
+            background: none; border: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            margin-bottom: -1px;
+        }
+
+        .tab-btn.active {
+            color: var(--gold);
+            border-bottom-color: var(--gold);
+        }
+
+        .form-section { display: none; }
+        .form-section.active { display: block; }
+
+        .form-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 28px; font-weight: 400;
+            color: var(--cream);
+            margin-bottom: 8px;
+        }
+
+        .form-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 36px;
+        }
+
+        .field { margin-bottom: 20px; }
+
+        .field label {
+            display: block;
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .field input {
+            width: 100%;
+            background: var(--surface-2);
+            border: 1px solid var(--border-soft);
+            border-radius: 6px;
+            padding: 13px 16px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            color: var(--cream);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .field input:focus {
+            border-color: var(--gold);
+        }
+
+        .field input::placeholder { color: var(--text-muted); }
+
+        .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 15px;
+            background: var(--gold);
+            color: var(--ink);
+            border: none;
+            border-radius: 6px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.25s;
+            margin-top: 8px;
+        }
+
+        .btn-primary:hover {
+            background: var(--gold-light);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(201,168,76,0.25);
+        }
+
+        .btn-primary:active { transform: translateY(0); }
+
+        /* ─── DASHBOARD ──────────────────────────────── */
+        #dashboard-view { display: none; flex-direction: column; min-height: 100vh; }
+        #dashboard-view.visible { display: flex; }
+
+        .navbar {
+            height: 64px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border-soft);
+            display: flex; align-items: center;
+            padding: 0 40px;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .navbar-brand {
+            display: flex; align-items: center; gap: 12px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 18px; font-weight: 500;
+            color: var(--cream);
+            letter-spacing: 0.04em;
+            margin-right: auto;
+        }
+
+        .navbar-brand-icon {
+            width: 32px; height: 32px;
+            background: var(--gold-dim);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px;
+        }
+
+        .navbar-right {
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        #user-greeting {
+            font-size: 12px;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            font-family: 'DM Mono', monospace;
+            padding: 0 16px;
+            border-right: 1px solid var(--border-soft);
+            margin-right: 8px;
+        }
+
+        .nav-btn {
+            background: none;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 7px 14px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; gap: 7px;
+        }
+
+        .nav-btn:hover { color: var(--cream); border-color: var(--border-soft); }
+
+        .nav-btn.danger:hover { color: var(--red); border-color: rgba(224,92,92,0.3); }
+
+        /* Main content */
+        .main-content {
+            flex: 1;
+            padding: 48px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .page-header {
+            display: flex; align-items: flex-end;
+            justify-content: space-between;
+            margin-bottom: 48px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid var(--border-soft);
+        }
+
+        .page-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 38px; font-weight: 300;
+            color: var(--cream);
+        }
+
+        .page-title span {
+            display: block;
+            font-size: 12px;
+            font-family: 'DM Mono', monospace;
+            color: var(--text-muted);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .btn-new {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 24px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--gold);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .btn-new:hover {
+            background: var(--gold-dim);
+            box-shadow: 0 0 24px rgba(201,168,76,0.1);
+        }
+
+        /* Piggy Grid */
+        #piggy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .piggy-card {
+            background: var(--surface);
+            border: 1px solid var(--border-soft);
+            border-radius: 12px;
+            padding: 28px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .piggy-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(201,168,76,0.04) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .piggy-card:hover {
+            border-color: var(--border);
+            transform: translateY(-3px);
+            box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+        }
+
+        .card-header {
+            display: flex; align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .card-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--surface-2);
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-soft);
+        }
+
+        .card-status {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 8px rgba(76,175,125,0.5);
+        }
+
+        .card-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 24px; font-weight: 400;
+            color: var(--cream);
+            margin-bottom: 4px;
+        }
+
+        .card-balance {
+            font-family: 'DM Mono', monospace;
+            font-size: 32px; font-weight: 500;
+            color: var(--gold);
+            letter-spacing: -0.02em;
+            margin-bottom: 20px;
+        }
+
+        .card-balance span {
+            font-size: 16px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 3px;
+            background: var(--surface-3);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--gold), var(--gold-light));
+            transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .progress-fill.complete {
+            background: linear-gradient(90deg, var(--green), #6fcfa0);
+        }
+
+        .card-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 10px;
+        }
+
+        .card-target {
+            font-size: 11px; color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+        }
+
+        .card-pct {
+            font-size: 11px;
+            font-family: 'DM Mono', monospace;
+            color: var(--gold);
+        }
+
+        /* Empty state */
+        #empty-state {
+            display: none;
+            text-align: center;
+            padding: 100px 20px;
+        }
+
+        .empty-icon {
+            font-size: 48px; margin-bottom: 20px; opacity: 0.2;
+        }
+
+        .empty-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 28px; font-weight: 300;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .empty-sub {
+            font-size: 13px; color: var(--text-muted);
+        }
+
+        /* ─── MODALS ─────────────────────────────────── */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border-soft);
+            border-radius: 16px;
+            width: 100%;
+            overflow: hidden;
+            animation: modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        @keyframes modalIn {
+            from { transform: scale(0.92) translateY(20px); opacity: 0; }
+            to   { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        .modal-create { max-width: 440px; }
+
+        .modal-header {
+            padding: 24px 28px;
+            border-bottom: 1px solid var(--border-soft);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .modal-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 22px; font-weight: 400;
+            color: var(--cream);
+        }
+
+        .modal-close {
+            width: 32px; height: 32px;
+            background: var(--surface-2);
+            border: 1px solid var(--border-soft);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover { color: var(--cream); border-color: var(--border); }
+
+        .modal-body { padding: 28px; }
+
+        /* Details modal */
+        .modal-details { max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; }
+
+        .details-hero {
+            padding: 32px 28px 28px;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border-soft);
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .details-hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(201,168,76,0.06) 0%, transparent 70%);
+        }
+
+        .details-hero-top {
+            display: flex; align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .details-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 30px; font-weight: 400;
+            color: var(--cream);
+        }
+
+        .details-actions { display: flex; gap: 8px; }
+
+        .icon-btn {
+            width: 34px; height: 34px;
+            background: var(--surface-3);
+            border: 1px solid var(--border-soft);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover { color: var(--cream); border-color: var(--border); }
+        .icon-btn.danger:hover { color: var(--red); border-color: rgba(224,92,92,0.3); }
+
+        .details-figures {
+            display: flex; gap: 32px;
+            position: relative;
+        }
+
+        .fig-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 28px; font-weight: 500;
+            color: var(--gold);
+        }
+
+        .fig-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 3px;
+        }
+
+        .fig-divider {
+            width: 1px; background: var(--border-soft);
+            align-self: stretch;
+        }
+
+        .details-progress {
+            margin-top: 20px;
+            position: relative;
+        }
+
+        .details-body {
+            overflow-y: auto;
+            flex: 1;
+            padding: 24px 28px;
+        }
+
+        /* Action tabs */
+        .action-tabs {
+            display: flex;
+            background: var(--surface-2);
+            border: 1px solid var(--border-soft);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .action-tab {
+            flex: 1; padding: 10px;
+            background: none; border: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.2s;
+        }
+
+        .action-tab.active {
+            background: var(--surface-3);
+            color: var(--cream);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+
+        .amount-input-wrap {
+            background: var(--surface-2);
+            border: 1px solid var(--border-soft);
+            border-radius: 8px;
+            padding: 16px 20px;
+            display: flex; align-items: center; gap: 8px;
+            transition: border-color 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .amount-input-wrap:focus-within { border-color: var(--gold); }
+
+        .currency-symbol {
+            font-family: 'DM Mono', monospace;
+            font-size: 20px;
+            color: var(--text-muted);
+        }
+
+        #trans-amount {
+            background: none; border: none;
+            font-family: 'DM Mono', monospace;
+            font-size: 28px; font-weight: 500;
+            color: var(--cream);
+            outline: none; width: 100%;
+        }
+
+        #trans-amount::placeholder { color: var(--text-muted); }
+
+        .btn-confirm {
+            width: 100%;
+            padding: 14px;
+            background: var(--gold);
+            color: var(--ink);
+            border: none; border-radius: 6px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px; font-weight: 500;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+
+        .btn-confirm:hover { background: var(--gold-light); transform: translateY(-1px); }
+        .btn-confirm.withdraw { background: transparent; color: var(--red); border: 1px solid rgba(224,92,92,0.4); }
+        .btn-confirm.withdraw:hover { background: var(--red-dim); transform: translateY(-1px); }
+
+        /* Transactions */
+        .tx-section-title {
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin: 24px 0 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-soft);
+        }
+
+        .tx-item {
+            display: flex; align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-soft);
+        }
+
+        .tx-item:last-child { border-bottom: none; }
+
+        .tx-icon {
+            width: 34px; height: 34px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            margin-right: 14px;
+            flex-shrink: 0;
+        }
+
+        .tx-icon.dep { background: var(--green-dim); color: var(--green); }
+        .tx-icon.wit { background: var(--red-dim); color: var(--red); }
+
+        .tx-info { flex: 1; }
+
+        .tx-type {
+            font-size: 13px; font-weight: 500;
+            color: var(--cream);
+        }
+
+        .tx-id {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px; color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .tx-amount {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px; font-weight: 500;
+        }
+
+        .tx-amount.dep { color: var(--green); }
+        .tx-amount.wit { color: var(--red); }
+
+        /* Loader */
+        #dashboard-loader {
+            display: none;
+            justify-content: center; align-items: center;
+            padding: 80px;
+        }
+
+        .loader {
+            width: 32px; height: 32px;
+            border: 2px solid var(--border-soft);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            #auth-view { flex-direction: column; }
+            .auth-left { padding: 60px 36px; }
+            .auth-right { width: 100%; padding: 40px 36px; }
+            .auth-stats { gap: 32px; }
+        }
+
+        @media (max-width: 600px) {
+            .auth-left { padding: 40px 24px; }
+            .auth-right { padding: 32px 24px; }
+            .main-content { padding: 32px 20px; }
+            .navbar { padding: 0 20px; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 20px; }
+        }
+
+        /* Fade in animation for cards */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .piggy-card { animation: fadeUp 0.4s ease both; }
+        .piggy-card:nth-child(2) { animation-delay: 0.06s; }
+        .piggy-card:nth-child(3) { animation-delay: 0.12s; }
+        .piggy-card:nth-child(4) { animation-delay: 0.18s; }
+        .piggy-card:nth-child(5) { animation-delay: 0.24s; }
+        .piggy-card:nth-child(6) { animation-delay: 0.30s; }
+    </style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     AUTH VIEW
+════════════════════════════════════════════════════ -->
+<div id="auth-view">
+    <div class="auth-left">
+        <div class="auth-logo">
+            <div class="auth-logo-icon">🐷</div>
+            <div class="auth-logo-text">PiggyBank</div>
+        </div>
+
+        <h1 class="auth-headline">
+            Grow your<br><em>wealth,</em><br>one goal at a time.
+        </h1>
+
+        <p class="auth-subtext">
+            Set savings targets, track every deposit and withdrawal, and watch your financial goals come to life.
+        </p>
+
+        <div class="auth-stats">
+            <div>
+                <div class="auth-stat-value">∞</div>
+                <div class="auth-stat-label">Goals</div>
+            </div>
+            <div>
+                <div class="auth-stat-value">100%</div>
+                <div class="auth-stat-label">Secure</div>
+            </div>
+            <div>
+                <div class="auth-stat-value">0</div>
+                <div class="auth-stat-label">Fees</div>
+            </div>
+        </div>
+
+        <div class="auth-deco"></div>
+    </div>
+
+    <div class="auth-right">
+        <div class="tab-row">
+            <button class="tab-btn active" id="tab-login" onclick="switchAuthMode('login')">Sign In</button>
+            <button class="tab-btn" id="tab-register" onclick="switchAuthMode('register')">Register</button>
+        </div>
+
+        <!-- Login -->
+        <div class="form-section active" id="form-login">
+            <div class="form-title">Welcome back</div>
+            <div class="form-subtitle">Sign in to your account to continue.</div>
+            <form onsubmit="handleLogin(event)">
+                <div class="field">
+                    <label>Email Address</label>
+                    <input type="email" id="login-email" placeholder="you@example.com" required>
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-primary">Sign In →</button>
+            </form>
+        </div>
+
+        <!-- Register -->
+        <div class="form-section" id="form-register">
+            <div class="form-title">Create account</div>
+            <div class="form-subtitle">Start your savings journey today.</div>
+            <form onsubmit="handleRegister(event)">
+                <div class="field-row">
+                    <div class="field">
+                        <label>Full Name</label>
+                        <input type="text" id="reg-name" placeholder="John Doe" required>
+                    </div>
+                    <div class="field">
+                        <label>Mobile</label>
+                        <input type="text" id="reg-mobile" placeholder="9876543210" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Email Address</label>
+                    <input type="email" id="reg-email" placeholder="you@example.com" required>
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="reg-password" placeholder="Create a strong password" required>
+                </div>
+                <button type="submit" class="btn-primary">Create Account →</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     DASHBOARD VIEW
+════════════════════════════════════════════════════ -->
+<div id="dashboard-view">
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <div class="navbar-brand-icon">🐷</div>
+            PiggyBank
+        </div>
+        <div class="navbar-right">
+            <span id="user-greeting"></span>
+            <button class="nav-btn danger" onclick="deleteUser()" title="Delete Account">
+                ✕ Delete Account
+            </button>
+            <button class="nav-btn" onclick="logout()">
+                ↩ Sign Out
+            </button>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <div class="page-header">
+            <div class="page-title">
+                <span>Savings Portfolio</span>
+                My Goals
+            </div>
+            <button class="btn-new" onclick="openCreateModal()">
+                + New Goal
+            </button>
+        </div>
+
+        <div id="dashboard-loader"><div class="loader"></div></div>
+
+        <div id="piggy-grid"></div>
+
+        <div id="empty-state">
+            <div class="empty-icon">🐷</div>
+            <div class="empty-title">No savings goals yet</div>
+            <div class="empty-sub">Create your first goal to start building wealth.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     CREATE MODAL
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="create-modal" onclick="overlayClose(event, 'create-modal')">
+    <div class="modal modal-create">
+        <div class="modal-header">
+            <div class="modal-title">New Savings Goal</div>
+            <button class="modal-close" onclick="closeModal('create-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <form onsubmit="handleCreatePiggy(event)">
+                <div class="field">
+                    <label>Goal Name</label>
+                    <input type="text" id="new-piggy-name" placeholder="e.g. MacBook Pro, Emergency Fund" required>
+                </div>
+                <div class="field">
+                    <label>Target Amount (₹)</label>
+                    <input type="number" id="new-piggy-target" placeholder="50000" min="1" required>
+                </div>
+                <div class="field">
+                    <label>Vault Password</label>
+                    <input type="password" id="new-piggy-pass" placeholder="Required for withdrawals" required>
+                </div>
+                <button type="submit" class="btn-primary" style="margin-top:8px;">Create Goal →</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     DETAILS MODAL
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="details-modal" onclick="overlayClose(event, 'details-modal')">
+    <div class="modal modal-details">
+
+        <div class="details-hero">
+            <div class="details-hero-top">
+                <div class="details-name" id="modal-piggy-name">—</div>
+                <div class="details-actions">
+                    <button class="icon-btn danger" onclick="deletePiggyBank()" title="Delete Goal">🗑</button>
+                    <button class="icon-btn" onclick="closeModal('details-modal')">✕</button>
+                </div>
+            </div>
+
+            <div class="details-figures">
+                <div>
+                    <div class="fig-value" id="modal-piggy-balance">₹0</div>
+                    <div class="fig-label">Current Balance</div>
+                </div>
+                <div class="fig-divider"></div>
+                <div>
+                    <div class="fig-value" id="modal-piggy-target" style="color: var(--text-secondary);">₹0</div>
+                    <div class="fig-label">Target</div>
+                </div>
+                <div class="fig-divider"></div>
+                <div>
+                    <div class="fig-value" id="modal-piggy-pct" style="color: var(--green);">0%</div>
+                    <div class="fig-label">Progress</div>
+                </div>
+            </div>
+
+            <div class="details-progress">
+                <div class="progress-track" style="margin-top: 16px; height: 4px;">
+                    <div class="progress-fill" id="modal-piggy-progress" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="details-body">
+            <div class="action-tabs">
+                <button class="action-tab active" id="btn-action-deposit" onclick="switchAction('deposit')">Deposit</button>
+                <button class="action-tab" id="btn-action-withdraw" onclick="switchAction('withdraw')">Withdraw</button>
+            </div>
+
+            <div class="amount-input-wrap">
+                <div class="currency-symbol">₹</div>
+                <input type="number" id="trans-amount" placeholder="0.00" min="0.01" step="0.01">
+            </div>
+
+            <button class="btn-confirm" id="btn-trans-submit" onclick="handleTransaction()">
+                Confirm Deposit
+            </button>
+
+            <div class="tx-section-title">Transaction History</div>
+            <div id="transaction-list"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8000";
+    let currentToken = localStorage.getItem('piggy_token');
+    let currentPiggyId = null;
+    let currentAction = 'deposit';
+
+    // ── Init ──────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        currentToken ? showDashboard() : showAuth();
+    });
+
+    // ── Auth UI ───────────────────────────────────
+    function switchAuthMode(mode) {
+        ['login','register'].forEach(m => {
+            document.getElementById(`tab-${m}`).classList.toggle('active', m === mode);
+            document.getElementById(`form-${m}`).classList.toggle('active', m === mode);
+        });
+    }
+
+    function showAuth() {
+        document.getElementById('auth-view').style.display = 'flex';
+        document.getElementById('dashboard-view').classList.remove('visible');
+    }
+
+    function showDashboard() {
+        document.getElementById('auth-view').style.display = 'none';
+        document.getElementById('dashboard-view').classList.add('visible');
+        fetchPiggyBanks();
+    }
+
+    function logout() {
+        localStorage.removeItem('piggy_token');
+        currentToken = null;
+        showAuth();
+        showToast('Signed out', 'info');
+    }
+
+    // ── API Helper ────────────────────────────────
+    async function apiCall(endpoint, method = 'GET', body = null, isForm = false) {
+        const headers = {};
+        if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
+        if (body && !isForm) headers['Content-Type'] = 'application/json';
+
+        const config = { method, headers };
+        if (body) config.body = isForm ? body : JSON.stringify(body);
+
+        try {
+            const res = await fetch(`${API_BASE}${endpoint}`, config);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Something went wrong');
+            return data;
+        } catch (err) {
+            showToast(err.message, 'error');
+            throw err;
+        }
+    }
+
+    // ── Auth Actions ──────────────────────────────
+    async function handleLogin(e) {
+        e.preventDefault();
+        const fd = new FormData();
+        fd.append('username', document.getElementById('login-email').value);
+        fd.append('password', document.getElementById('login-password').value);
+        try {
+            const data = await apiCall('/user/login', 'POST', fd, true);
+            currentToken = data.access_token;
+            localStorage.setItem('piggy_token', currentToken);
+            showToast('Welcome back', 'success');
+            showDashboard();
+        } catch (_) {}
+    }
+
+    async function handleRegister(e) {
+        e.preventDefault();
+        try {
+            await apiCall('/users', 'POST', {
+                name:      document.getElementById('reg-name').value,
+                mobile_no: document.getElementById('reg-mobile').value,
+                email:     document.getElementById('reg-email').value,
+                password:  document.getElementById('reg-password').value,
+            });
+            showToast('Account created — please sign in', 'success');
+            switchAuthMode('login');
+        } catch (_) {}
+    }
+
+    // ── Dashboard ─────────────────────────────────
+    async function fetchPiggyBanks() {
+        const grid  = document.getElementById('piggy-grid');
+        const loader = document.getElementById('dashboard-loader');
+        const empty = document.getElementById('empty-state');
+
+        grid.innerHTML = '';
+        loader.style.display = 'flex';
+        empty.style.display  = 'none';
+
+        try {
+            const list = await apiCall('/users/piggybank');
+            loader.style.display = 'none';
+
+            if (!list || list.length === 0) {
+                empty.style.display = 'block';
+                return;
+            }
+
+            const details = await Promise.all(
+                list.map(p => apiCall(`/users/piggybank/${p.piggybank_id}`).catch(() => p))
+            );
+
+            details.forEach(p => grid.appendChild(createCard(p)));
+        } catch (_) {
+            loader.style.display = 'none';
+        }
+    }
+
+    function createCard(p) {
+        const target  = p.target_amount || 1;
+        const pct     = Math.min(100, Math.max(0, (p.balance / target) * 100));
+        const complete = pct >= 100;
+
+        const card = document.createElement('div');
+        card.className = 'piggy-card';
+        card.onclick = () => openDetailsModal(p.piggybank_id);
+        card.innerHTML = `
+            <div class="card-header">
+                <div class="card-id">#${p.piggybank_id}</div>
+                <div class="card-status" style="${complete ? 'background:var(--gold);box-shadow:0 0 8px rgba(201,168,76,0.5)' : ''}"></div>
+            </div>
+            <div class="card-name">${p.name}</div>
+            <div class="card-balance">₹${Number(p.balance).toLocaleString('en-IN')} <span>/ ₹${Number(target).toLocaleString('en-IN')}</span></div>
+            <div class="progress-track">
+                <div class="progress-fill ${complete ? 'complete' : ''}" style="width:${pct}%"></div>
+            </div>
+            <div class="card-footer">
+                <div class="card-target">Target ₹${Number(target).toLocaleString('en-IN')}</div>
+                <div class="card-pct">${Math.round(pct)}%</div>
+            </div>`;
+        return card;
+    }
+
+    // ── Delete actions ────────────────────────────
+    async function deletePiggyBank() {
+        if (!currentPiggyId) return;
+        const name = prompt('Enter the goal name to confirm:');
+        if (!name) return;
+        const pw = prompt('Enter the vault password:');
+        if (!pw) return;
+        if (!confirm('This cannot be undone. Delete this goal?')) return;
+        try {
+            const p = new URLSearchParams({ name, passwordpb: pw });
+            await apiCall(`/users/piggybank/${currentPiggyId}?${p}`, 'DELETE');
+            showToast('Goal deleted', 'info');
+            closeModal('details-modal');
+            fetchPiggyBanks();
+        } catch (_) {}
+    }
+
+    async function deleteUser() {
+        if (!confirm('Delete your entire account?')) return;
+        if (!confirm('All goals and data will be permanently lost. Continue?')) return;
+        try {
+            await apiCall('/users', 'DELETE');
+            showToast('Account deleted', 'info');
+            logout();
+        } catch (_) {}
+    }
+
+    // ── Piggy create ──────────────────────────────
+    async function handleCreatePiggy(e) {
+        e.preventDefault();
+        try {
+            await apiCall('/users/piggybank', 'POST', {
+                name:          document.getElementById('new-piggy-name').value,
+                target_amount: Number(document.getElementById('new-piggy-target').value),
+                passwordpb:    document.getElementById('new-piggy-pass').value,
+            });
+            showToast('Goal created', 'success');
+            closeModal('create-modal');
+            fetchPiggyBanks();
+            e.target.reset();
+        } catch (_) {}
+    }
+
+    // ── Details modal ─────────────────────────────
+    async function openDetailsModal(id) {
+        currentPiggyId = id;
+        document.getElementById('trans-amount').value = '';
+        switchAction('deposit');
+        document.getElementById('transaction-list').innerHTML =
+            '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">Loading...</div>';
+        openModal('details-modal');
+
+        try {
+            const d = await apiCall(`/users/piggybank/${id}`);
+            const pct = Math.min(100, (d.balance / d.target_amount) * 100);
+            document.getElementById('modal-piggy-name').textContent    = d.name;
+            document.getElementById('modal-piggy-balance').textContent = `₹${Number(d.balance).toLocaleString('en-IN')}`;
+            document.getElementById('modal-piggy-target').textContent  = `₹${Number(d.target_amount).toLocaleString('en-IN')}`;
+            document.getElementById('modal-piggy-pct').textContent     = `${Math.round(pct)}%`;
+            document.getElementById('modal-piggy-progress').style.width = `${pct}%`;
+            document.getElementById('modal-piggy-progress').classList.toggle('complete', pct >= 100);
+            loadTransactions(id);
+        } catch (_) { closeModal('details-modal'); }
+    }
+
+    async function loadTransactions(id) {
+        const list = document.getElementById('transaction-list');
+        try {
+            const txs = await apiCall(`/users/piggybank/${id}/transaction`);
+            list.innerHTML = '';
+            if (!txs || txs.length === 0) {
+                list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">No transactions yet.</div>';
+                return;
+            }
+            txs.sort((a,b) => b.transaction_id - a.transaction_id).forEach(t => {
+                const dep = t.type.toLowerCase() === 'deposit';
+                const el = document.createElement('div');
+                el.className = 'tx-item';
+                el.innerHTML = `
+                    <div class="tx-icon ${dep ? 'dep' : 'wit'}">${dep ? '↓' : '↑'}</div>
+                    <div class="tx-info">
+                        <div class="tx-type">${t.type}</div>
+                        <div class="tx-id">TXN #${t.transaction_id}</div>
+                    </div>
+                    <div class="tx-amount ${dep ? 'dep' : 'wit'}">${dep ? '+' : '-'}₹${Number(t.amount).toLocaleString('en-IN')}</div>`;
+                list.appendChild(el);
+            });
+        } catch (err) {
+            if (err.message.includes('No transactions')) {
+                list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">No transactions yet.</div>';
+            }
+        }
+    }
+
+    function switchAction(type) {
+        currentAction = type;
+        const dep = type === 'deposit';
+        document.getElementById('btn-action-deposit').classList.toggle('active', dep);
+        document.getElementById('btn-action-withdraw').classList.toggle('active', !dep);
+        const btn = document.getElementById('btn-trans-submit');
+        btn.textContent = dep ? 'Confirm Deposit' : 'Confirm Withdrawal';
+        btn.className = `btn-confirm${dep ? '' : ' withdraw'}`;
+    }
+
+    async function handleTransaction() {
+        const amount = document.getElementById('trans-amount').value;
+        if (!amount || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+        try {
+            await apiCall(`/users/piggybank/${currentPiggyId}/${currentAction}?amount=${amount}`, 'POST');
+            showToast(`${currentAction === 'deposit' ? 'Deposited' : 'Withdrawn'} ₹${Number(amount).toLocaleString('en-IN')}`, 'success');
+            openDetailsModal(currentPiggyId);
+            fetchPiggyBanks();
+        } catch (_) {}
+    }
+
+    // ── Modal helpers ─────────────────────────────
+    function openModal(id)  { document.getElementById(id).classList.add('open'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    function openCreateModal() { openModal('create-modal'); }
+    function overlayClose(e, id) { if (e.target === document.getElementById(id)) closeModal(id); }
+
+    // ── Toast ─────────────────────────────────────
+    function showToast(msg, type = 'info') {
+        const c = document.getElementById('toast-container');
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.innerHTML = `<div class="toast-dot"></div>${msg}`;
+        c.appendChild(t);
+        requestAnimationFrame(() => { requestAnimationFrame(() => t.classList.add('show')); });
+        setTimeout(() => {
+            t.classList.remove('show');
+            setTimeout(() => t.remove(), 400);
+        }, 3000);
+    }
+</script>
+</body>
+</html>
